@@ -1,0 +1,238 @@
+
+import xml.etree.ElementTree as ET
+import utm
+import re
+import math
+import ezdxf
+import requests
+     
+
+
+# Funcion que analiza la estructura del archivo kml, altitud value no se utiliza, se incorpora para usos futuros a traves de una API
+def parseo(ruta_archivo_klm, checkbox_frame_2_get):
+    altitude_value = checkbox_frame_2_get
+    
+    try:
+        tree = ET.parse(ruta_archivo_klm)
+        root_element_xml = tree.getroot()
+     
+    except ET.ParseError as e:
+        print(f"Error al parsear el archivo KML: {e}")
+        return
+      
+    return root_element_xml, altitude_value
+    
+def encontrar_placemark(root_element_xml):
+    placemark  = root_element_xml.findall('.//{http://www.opengis.net/kml/2.2}Placemark')
+    
+    return placemark
+
+def procesar_placemark(placemark, obtener_elevacion_valor, coords, layers, coords_dec):
+    name_element = placemark.find('{http://www.opengis.net/kml/2.2}name')
+    layer_name = name_element.text if name_element is not None else 'Sin_nombre'
+    if len(layer_name) > 255:
+        layer_name = layer_name[:255]
+    layer_name = re.sub('[^a-zA-Z0-9_]', '_', layer_name)
+
+    ls = placemark.find('{http://www.opengis.net/kml/2.2}LineString')
+    py = placemark.find('{http://www.opengis.net/kml/2.2}Polygon')
+    mg = placemark.find('{http://www.opengis.net/kml/2.2}MultiGeometry')
+    pt = placemark.find('{http://www.opengis.net/kml/2.2}Point')
+
+    if ls is not None:
+        coord = ls.find('{http://www.opengis.net/kml/2.2}coordinates')
+    elif py is not None:
+        outer_boundary = py.find('{http://www.opengis.net/kml/2.2}outerBoundaryIs')
+        if outer_boundary is not None:
+            linear_ring = outer_boundary.find('{http://www.opengis.net/kml/2.2}LinearRing')
+            if linear_ring is not None:
+                coord = linear_ring.find('{http://www.opengis.net/kml/2.2}coordinates')
+    elif pt is not None:
+        coord = pt.find('{http://www.opengis.net/kml/2.2}coordinates')
+
+    if mg is not None:
+        utm_points, coords, coords_dec, layers = procesar_multigeometrias(mg, layer_name, obtener_elevacion_valor, coords, layers, coords_dec)
+    elif coord is not None:
+        utm_points, coords, coords_dec, layers = procesar_coordenadas_utm(coord, layer_name, obtener_elevacion_valor, coords, layers, coords_dec)
+
+    return utm_points, coords, coords_dec, layers, layer_name
+    
+def obtener_coordenadas_capas(root_element_xml, altitude_value):
+    doc = ezdxf.new('R2013')
+    coords = []  #coordenas UTM
+    layers = []  #capas
+    coords_dec = [] #coordenadas decimales
+    utm_points_list = [] #coordenadas utm transitorias
+    layer_names = [] #capas transitorias
+    # listas transitorias utilizadas para el trazado de  distintas polilineas sin union entre ellas
+    
+    #bucle para encontrar las coordenadas y capas de las distintas geometrias del archivo KML
+    for placemark in encontrar_placemark(root_element_xml):
+        utm_points, coords, coords_dec, layers, layer_name = procesar_placemark(placemark, altitude_value, coords, layers, coords_dec)
+        utm_points_list.append(utm_points)  # IMPIDE QUE LA POLILINEA SEA CONTINUA
+        layer_names.append(layer_name)
+    
+    for coords, layer_name in zip(utm_points_list, layer_names):
+        agregar_polilinea(coords, layer_name, doc)
+    
+    #Proceso para obtener  las distancias masximas de longitud y latidud del archivo KML y otener su radio para emplearlo en el mapa preliminar 
+    resultados = obtener_maximos_minimos(coords_dec)
+    lat_centro = resultados['lat_centro']
+    lon_centro = resultados['lon_centro']
+    radio = resultados['radio']
+      
+    return doc, coords, coords_dec, layers, lat_centro, lon_centro, radio, utm_points_list, layer_names
+
+def procesar_multigeometrias(geoms, layer_name, obtener_elevacion_valor, coords, layers, coords_dec):
+    utm_points_total = []
+    coords_total = coords
+    coords_dec_total = coords_dec
+    layers_total = layers
+    
+    for geom in geoms:
+        if geom.tag == '{http://www.opengis.net/kml/2.2}Polygon':
+            outer_boundary = geom.find('{http://www.opengis.net/kml/2.2}outerBoundaryIs')
+            if outer_boundary is not None:
+                linear_ring = outer_boundary.find('{http://www.opengis.net/kml/2.2}LinearRing')
+                if linear_ring is not None:
+                    coord = linear_ring.find('{http://www.opengis.net/kml/2.2}coordinates')
+                    utm_points, coords, coords_dec, layers = procesar_coordenadas_utm(coord, layer_name, obtener_elevacion_valor, coords, layers, coords_dec)
+                    utm_points_total.extend(utm_points)
+                    coords_total.extend(coords)
+                    coords_dec_total.extend(coords_dec)
+        elif geom.tag in ['{http://www.opengis.net/kml/2.2}LineString', '{http://www.opengis.net/kml/2.2}Point']:
+            coord = geom.find('{http://www.opengis.net/kml/2.2}coordinates')
+            utm_points, coords, coords_dec, layers = procesar_coordenadas_utm(coord, layer_name, obtener_elevacion_valor, coords, layers, coords_dec)
+            utm_points_total.extend(utm_points)
+            coords_total.extend(coords)
+            coords_dec_total.extend(coords_dec)
+    
+    return utm_points_total, coords_total, coords_dec_total, layers_total
+
+def obtener_maximos_minimos(coords_dec):
+    # Calcula el promedio de las coordenadas x e y
+    lats, lons = zip(*coords_dec)
+    lat_centro = sum(lats) / len(lats)
+    lon_centro = sum(lons) / len(lons)
+
+    # Obtener los máximos y mínimos de latitud y longitud
+    lat_min = min(lats)
+    lat_max = max(lats)
+    lon_min = min(lons)
+    lon_max = max(lons)
+
+    # Calcular el radio en metros utilizando la fórmula de Haversine
+    def haversine(lat1, lon1, lat2, lon2):
+        R = 6371000  # Radio de la Tierra en metros
+        lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
+        dlat = lat2 - lat1
+        dlon = lon2 - lon1
+        a = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
+        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+        return R * c
+
+    # Calcular la distancia entre los puntos extremos
+    distancia_ns = haversine(lat_min, lon_centro, lat_max, lon_centro)
+    distancia_ew = haversine(lat_centro, lon_min, lat_centro, lon_max)
+
+    # El radio es la mitad de la distancia máxima
+    radio = max(distancia_ns, distancia_ew) / 2
+
+    return {
+        'lat_min': lat_min,
+        'lat_max': lat_max,
+        'lon_min': lon_min,
+        'lon_max': lon_max,
+        'lat_centro': lat_centro,
+        'lon_centro': lon_centro,
+        'radio': radio
+    }
+     
+def procesar_coordenadas_utm(coord, layer_name,  altitud_value ,coords, layers, coords_dec):
+                       
+    utm_points = []
+    elevaciones_api = []  
+    
+    if coord is not None:
+        points = [c.split(',') for c in coord.text.split()]
+        
+        for point in points:
+            lat, lon = float(point[1]), float(point[0])
+            utm_point = utm.from_latlon(lat, lon)
+            layers.append(layer_name)
+            coords_dec.append((lat, lon))
+            if altitud_value:
+                print("Obteniendo altitud de la API de Google Maps...")
+                altitud_api = obtener_altitud_api(lat, lon)
+                elevaciones_api.append((lat, lon, altitud_api))
+                utm_points.append((utm_point[0], utm_point[1], altitud_api))
+                coords.append((utm_point[0], utm_point[1], altitud_api))
+            else:
+                utm_points.append((utm_point[0], utm_point[1], 0))
+                coords.append((utm_point[0], utm_point[1], 0))
+   
+    return utm_points, coords, coords_dec, layers
+
+def obtener_altitud_api(lat, lon):
+    url = f"https://maps.googleapis.com/maps/api/elevation/json?locations={lat},{lon}&key=AIzaSyACWL7hMm-4fAymx2DY5IkJ5iDlVUy4zEA"
+    respuesta = requests.get(url)
+    
+    if respuesta.status_code == 200:
+        print("Respuesta de la API de Google Maps recibida correctamente")
+        datos = respuesta.json()
+        return round(datos["results"][0]["elevation"], 2)
+    else:
+        return 0
+
+def agregar_polilinea(coords, layer_name, doc):
+    """
+    Agrega una polilínea o un círculo a un documento DXF.
+
+    Parámetros:
+    utm_points (list): Lista de puntos UTM.
+    layer_name (str): Nombre de la capa.
+    doc (ezdxf.document): Documento DXF.
+    radio (float): Radio del círculo.
+    """
+    # Verificar si el nombre ya existe en el documento DXF
+    if layer_name in doc.layers:
+        # Si ya existe, agregar un sufijo para hacerlo único
+        i = 1
+        while f"{layer_name} ({i})" in doc.layers:
+            i += 1
+        layer_name = f"{layer_name} ({i})"    
+    layer = doc.layers.new(layer_name)
+    layer.dxf.color = 154  # azul (utiliza el índice de color de AutoCAD)
+    msp = doc.modelspace()
+    
+    if len(coords) == 1:  # Si es un punto
+        # Generar un círculo de radio un metro alrededor del punto
+        radius = 20  # Radio del círculo en metros
+        
+        global  num_points
+        num_points = 36  # Número de puntos que conforman el círculo
+        
+        circle_points = []
+        for i in range(num_points):
+            angle = i * 360 / num_points
+            x = coords[0][0] + radius * math.cos(math.radians(angle))
+            y = coords[0][1] + radius * math.sin(math.radians(angle))
+            circle_points.append((x, y))
+            
+        # Agregar el círculo al documento DXF
+        
+        polyline = msp.add_polyline2d(circle_points, dxfattribs={'layer': layer_name, 'color': 7})
+        polyline.set_xdata('ACAD', [(1000, 'CIRCULO')])
+        
+        # Crear un hatch (relleno) para rellenar el círculo
+        hatch = msp.add_hatch(color=1)  # Color negro
+        hatch.paths.add_polyline_path(circle_points + [circle_points[0]])  # Agregar el primer punto al final para cerrar el hatch
+        
+        # Agregar el nombre de la capa encima del círculo
+        msp.add_mtext(layer_name, dxfattribs={'layer': layer_name, 'color': 7, 'insert': (coords[0][0], coords[0][1] + radius + 5), 'char_height': 30})
+        
+    else:
+        # Agregar la polilínea al documento DXF
+        msp.add_polyline2d(coords, dxfattribs={'layer': layer_name, 'color': 7})
+                  
+        
