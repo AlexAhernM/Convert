@@ -1,0 +1,524 @@
+Este es un resumen de lo que tengo hasta ahora, al parecer tengo clases y funciones  repetidas en Preview_kml.py y Transforma.py  
+
+SCRIPT : Ventana_Principal.py
+
+import os
+import customtkinter as ctk
+from PIL import Image
+from Ventana_Segunda import VentanaSegunda
+from Ventana_Tercera import VentanaTercera
+
+class VentanaPrincipal(ctk.CTk):
+
+  """
+    Ventana principal del programa Geo Convert de Ambylog.
+    Permite al usuario elegir entre dos tipos de conversión geoespacial.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.title("Geo Convert Program by Ambylog")
+        self.after(0, lambda: self.state('zoomed'))
+        self.configure(fg_color='white')
+
+        self._crear_botones()
+        self._cargar_imagenes()
+
+    def _crear_botones(self):
+        """Crea los botones principales de la interfaz."""
+        self.boton_inic1 = ctk.CTkButton(
+            self,
+            text='Convert your KML/KMZ files into   \n CAD, Shapefile or Excel',
+            font=('Arial', 36),
+            text_color='white',
+            width=520,
+            height=140,
+            fg_color='salmon3',
+            hover_color='salmon4',
+            command=lambda: VentanaSegunda(self),
+            corner_radius=20
+        )
+        self.boton_inic1.configure(cursor='hand2')
+        self.boton_inic1.place(x=30, y=200)
+
+        self.boton_inic2 = ctk.CTkButton(
+            self,
+            text='Convert coordinates (in Excel) into\n KML, CAD or Shapefile',
+            font=('Arial', 36),
+            text_color='white',
+            width=520,
+            height=140,
+            fg_color='green3',
+            hover_color='green4',
+            command=lambda: VentanaTercera(self),
+            corner_radius=20
+        )
+        self.boton_inic2.configure(cursor='hand2')
+        self.boton_inic2.place(x=30, y=400)
+
+    def _cargar_imagenes(self):
+        """Carga y muestra las imágenes en la interfaz."""
+        try:
+            ruta_mundo = os.path.join("Convert", "mundo.png")
+            imagen1 = Image.open(ruta_mundo)
+            imagen_tk1 = ctk.CTkImage(light_image=imagen1, dark_image=imagen1, size=(760, 360))
+            label1 = ctk.CTkLabel(self, image=imagen_tk1, text="")
+            label1.image = imagen_tk1
+            label1.place(x=700, y=180)
+        except FileNotFoundError:
+            print(f"No se encontró la imagen: {ruta_mundo}")
+
+        try:
+            ruta_logo = os.path.join("Conversion", "AMBYLOG.png")
+            imagen2 = Image.open(ruta_logo)
+            imagen_tk2 = ctk.CTkImage(light_image=imagen2, dark_image=imagen2, size=(240, 100))
+            label2 = ctk.CTkLabel(self, image=imagen_tk2, text="")
+            label2.image = imagen_tk2
+            label2.place(x=30, y=20)
+        except FileNotFoundError:
+            print(f"No se encontró la imagen: {ruta_logo}")
+
+    def run(self):
+        """Inicia el bucle principal de la aplicación."""
+        self.mainloop()
+
+
+if __name__ == "__main__":
+    app = VentanaPrincipal()
+    app.run()
+
+
+
+SCRIPT : Ventana_Segunda.py
+
+import os
+import zipfile
+import tempfile
+import shutil
+import customtkinter as ctk
+from customtkinter import filedialog
+from Preview_kml import procesar_archivo_kml
+from Imagen_windows2 import ventana_segunda_imagen
+
+class VentanaSegunda(ctk.CTkToplevel):
+    """
+    Ventana secundaria para seleccionar y previsualizar archivos KML o KMZ.
+    """
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.title("Convert KML Files")
+        self.geometry('1300x600')
+        self.color_ventana = 'snow'
+        self.configure(fg_color=self.color_ventana)
+        self.grab_set()
+
+        self._crear_widgets()
+        ventana_segunda_imagen(self)
+
+    def _crear_widgets(self):
+        """Crea y posiciona los elementos de la interfaz."""
+        self.selectdata_boton = ctk.CTkButton(
+            self,
+            text='Select your KML File',
+            width=200,
+            fg_color='gray7',
+            font=('Arial', 16),
+            text_color='white',
+            command=self._select_kml
+        )
+        self.selectdata_boton.place(x=40, y=40)
+
+        self.selectdata_entry = ctk.CTkEntry(self, width=270, state='disabled')
+        self.selectdata_entry.place(x=270, y=40)
+
+        self.checkbox_altitude = ctk.CTkCheckBox(
+            self,
+            text='Get Altitude',
+            text_color_disabled=self.color_ventana,
+            border_width=1,
+            border_color=self.color_ventana,
+            text_color=self.color_ventana,
+            state='disabled'
+        )
+        self.checkbox_altitude.place(x=140, y=100)
+
+        self.boton_procesar_kml = ctk.CTkButton(
+            self,
+            text="Preview",
+            width=510,
+            fg_color='black',
+            text_color='white',
+            font=('Arial', 16),
+            command=lambda: procesar_archivo_kml(self)
+        )
+        self.boton_procesar_kml.place(x=40, y=140)
+
+        self.show_files_frame = ctk.CTkFrame(
+            self,
+            fg_color=self.color_ventana,
+            width=510,
+            height=320
+        )
+        self.show_files_frame.place(x=40, y=260)
+
+    def _select_kml(self):
+        """Permite al usuario seleccionar un archivo KML o KMZ y lo prepara para su procesamiento."""
+        self.selectdata_entry.configure(state='normal')
+        self.mapa_tkinter = None
+        self.boton_procesar_kml.configure(state='normal')
+        self.grab_set()
+
+        ruta_archivo = filedialog.askopenfilename(
+            title="Seleccionar archivo KML o KMZ",
+            filetypes=[("Archivos KML/KMZ", "*.kml *.kmz")],
+            parent=self
+        )
+
+        if not ruta_archivo:
+            return  # El usuario canceló
+
+        if ruta_archivo.endswith('.kmz'):
+            ruta_archivo_kml = self._convertir_kmz_a_kml(ruta_archivo)
+            if not ruta_archivo_kml:
+                print("No se pudo extraer el archivo KML del KMZ.")
+                return
+        else:
+            ruta_archivo_kml = ruta_archivo
+
+        self.selectdata_entry.delete(0, ctk.END)
+        self.selectdata_entry.insert(ctk.END, ruta_archivo_kml)
+        self.selectdata_entry.configure(state='disabled')
+        self.boton_procesar_kml.configure(state='normal')
+
+    def _convertir_kmz_a_kml(self, ruta_kmz):
+        """Extrae el archivo KML de un archivo KMZ y lo guarda en la misma carpeta."""
+        try:
+            with zipfile.ZipFile(ruta_kmz, 'r') as kmz:
+                with tempfile.TemporaryDirectory() as temp_dir:
+                    kmz.extractall(temp_dir)
+                    for file in os.listdir(temp_dir):
+                        if file.endswith('.kml'):
+                            ruta_kml_extraido = os.path.join(temp_dir, file)
+                            ruta_kml_destino = ruta_kmz.replace('.kmz', '.kml')
+                            shutil.copy(ruta_kml_extraido, ruta_kml_destino)
+                            return ruta_kml_destino
+        except Exception as e:
+            print(f"Error al convertir KMZ a KML: {e}")
+            return None
+
+    def close_windows(self):
+        """Cierra la ventana actual."""
+        self.destroy()
+
+SCRIPT : Ventana_Tercera.py
+
+import customtkinter as ctk
+from Select_cor import select_cor, convert_cor
+from Imagen_windows2 import ventana_tercera_imagen
+from RButtom import Rbutton # Asegúrate de importar correctamente
+
+class VentanaTercera(ctk.CTkToplevel):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.title("Convert Coord to KML, CAD or Shapefile")
+        self.geometry('1300x600')
+        self.color_ventana = 'red'
+        self.configure(fg_color=self.color_ventana)
+        self.grab_set()
+
+        self._crear_widgets()
+        ventana_tercera_imagen(self)
+
+    def _crear_widgets(self):
+        self.selectcor_boton = ctk.CTkButton(
+            self, text='Select your Excel File', width=200,
+            fg_color='gray7', font=('Arial', 16), text_color='white',
+            command=lambda: select_cor(self)
+        )
+        self.selectcor_boton.place(x=40, y=40)
+
+        self.selectcor_entry = ctk.CTkEntry(self, width=270)
+        self.selectcor_entry.place(x=270, y=40)
+
+        self.boton_cor_preview = ctk.CTkButton(
+            self, text="Preview", width=510,
+            fg_color='black', text_color='white', font=('Arial', 16),
+            command=lambda: convert_cor(self)
+        )
+        self.boton_cor_preview.place(x=40, y=210)
+
+        self.show_cor_frame = ctk.CTkFrame(
+            self, fg_color=self.color_ventana, width=510, height=320
+        )
+        self.show_cor_frame.place(x=40, y=250)
+
+        # ✅ Agregar grupo de radio buttons
+        self.tipo_coord_rbuttons = Rbutton(
+            self,
+            values=["Geográficas", "UTM", "Decimal"],
+            x=600, y=40
+        )
+
+    def get_tipo_coordenada(self):
+        """Devuelve el índice del tipo de coordenada seleccionado."""
+        return self.tipo_coord_rbuttons.get_value()
+
+SCRIPT: RButtom.py
+
+import customtkinter as ctk
+
+
+class Rbutton:
+    def __init__(self, master, values, x=30, y=80, x_spacing=200, y_spacing=60,
+                 orientation='horizontal', label_color='white', use_labels=True):
+        self.rbuttons = []
+        self.var = ctk.IntVar(value=-1)
+	# codigo
+
+    def get_value(self):
+        return self.var.get()
+
+    def set_value(self, index):
+        self.var.set(index)
+
+    def set_state(self, state='normal'):
+        for rbutton in self.rbuttons:
+            rbutton.configure(state=state)
+
+
+SCRIPT : Select_cor.py
+import customtkinter as ctk
+from customtkinter import filedialog
+
+def select_cor(self):
+    self.mapa_tkinter = None
+    self.selectcor_boton.configure(state='normal')
+    self.grab_set()
+    ruta_archivo_excel = filedialog.askopenfilename(title="Seleccionar archivo Excel", filetypes=[("Archivo XLSX", "*.xlsx")])
+    self.selectcor_entry.delete(0, ctk.END)
+    self.selectcor_entry.insert(ctk.END, ruta_archivo_excel)
+    convert_cor(self)
+    return ruta_archivo_excel
+
+def convert_cor(self):
+    class Rbutton:
+        def __init__(self, master, values):
+
+# codigo
+
+
+SCRIPT: Preview_kml.py
+
+import customtkinter as ctk
+from tkinter import messagebox, PhotoImage
+from tkintermapview import TkinterMapView
+from PIL import Image, ImageTk
+import os
+
+# Importa tus módulos
+from Transforma import parseo, obtener_coordenadas_capas, encontrar_placemark, procesar_placemark
+from zoom import get_zoom_level
+from Crea_Checkboxes import checkboxes_convert
+from genera import generate_files
+from Widget_destroy import widgets_destroy
+
+
+# Constantes para colores y fuentes (mejoran la mantenibilidad)
+COLOR_BACKGROUND_LABEL = 'gray69'
+COLOR_TEXT_LABEL = 'blue'
+FONT_MARKER = ("Times New Roman", 10, "bold")
+IMAGE_PLANE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "images", "circle.png")
+
+
+class KMLProcessor:
+    def __init__(self, parent):
+	# codigo
+
+    def procesar_archivo(self):
+	# codigo
+
+    def confirmar_localizacion(self, doc, ruta_archivo_kml, coords, utm_point_list, layer_names):
+	# codigo
+
+    def update_preview(self, lat_centro, lon_centro, zoom_start, root_element_xml, altitud_value):
+	# codigo
+
+
+# Codigo
+
+
+SCRIPT: GeoProcessorBase.py
+
+from abc import ABC, abstractmethod
+
+class GeoProcessorBase(ABC):
+    def __init__(self, parent):
+        self.parent = parent
+        self.mapa_tkinter = None
+        self.label3 = None
+
+    @abstractmethod
+    def procesar_archivo(self):
+        """Procesa el archivo geoespacial. Debe ser implementado por cada subclase."""
+        pass
+
+    @abstractmethod
+    def update_preview(self, *args, **kwargs):
+        """Actualiza la vista previa del mapa. Debe ser implementado por cada subclase."""
+        pass
+
+    @abstractmethod
+    def confirmar_localizacion(self, *args, **kwargs):
+        """Confirma la localización con el usuario. Debe ser implementado por cada subclase."""
+        pass
+
+SCRIPT: Transforma.py
+
+import customtkinter as ctk
+from tkinter import messagebox
+from tkintermapview import TkinterMapView
+from PIL import Image, ImageTk
+import os
+
+from utils_geo import parseo, obtener_coordenadas_capas, encontrar_placemark, procesar_placemark
+from zoom import get_zoom_level
+from Crea_Checkboxes import checkboxes_convert
+from genera import generate_files
+from Widget_destroy import widgets_destroy
+from GeoProcessorBase import GeoProcessorBase  # Asegúrate de importar correctamente
+
+class KMLProcessor(GeoProcessorBase):
+    def procesar_archivo(self):
+	# codigo
+
+    def confirmar_localizacion(self, doc, ruta_archivo_kml, coords, utm_point_list, layer_names):
+	# codigo
+
+    def update_preview(self, lat_centro, lon_centro, zoom_start, root_element_xml, altitud_value):
+	# codigo
+
+	
+
+SCRIPT: utils_geo.py
+
+import xml.etree.ElementTree as ET
+import utm
+import re
+import math
+import requests
+
+
+def encontrar_placemark(root_element_xml):
+
+# codigo
+
+def procesar_placemark(placemark, obtener_elevacion_valor, coords, layers, coords_dec):
+
+# codigo
+
+def procesar_multigeometrias(geoms, layer_name, obtener_elevacion_valor, coords, layers, coords_dec):
+
+# codigo
+
+
+def procesar_coordenadas_utm(coord, layer_name, altitud_value, coords, layers, coords_dec):
+
+# codigo
+
+def obtener_altitud_api(lat, lon):
+
+# codigo
+
+def obtener_maximos_minimos(coords_dec):
+
+# codigo
+
+def agregar_polilinea(coords, layer_name, doc):7
+
+# codigo
+
+SCRIPT: genera.py
+
+from build_files import crear_files
+from Show_messages import show_messages
+
+
+
+SCRIPT : Show_messages.py
+
+import customtkinter as ctk
+import os
+import re
+from Widget_destroy import widgets_destroy
+from tkinter import messagebox
+
+class ShowMessages:
+    def __init__(self, parent):
+        self.parent = parent
+
+    def show_messages(self, messages):
+	# codigo
+
+
+    def show_single_file(self, file_path, file_type):
+
+	# codigo
+
+    def _extract_path(self, message, pattern):
+
+	# codigo
+
+    def _setup_ui(self):
+
+        # codigo
+
+   def _create_file_display(self, x, y, label_text, button_text, file_path):
+
+        # codigo
+
+   def _abrir_archivo(self, ruta):
+
+	# codigo
+
+Script : Windows_destroy.py
+
+from Imagen_windows2 import ventana_segunda_imagen
+
+def widgets_destroy(self):
+
+# codigo
+
+ventana_segunda_imagen(self)
+
+
+SCRIPT: Imagen_windows2.py
+
+def ventana_segunda_imagen(self): 
+# codigo
+
+def ventana_tercera_imagen(self):  
+# codigo
+
+SCRIPT : zoom.py
+
+#Funcion que determina el zoom para TkinterMapView
+def get_zoom_level(radio):
+
+def generate_files(self, doc, ruta_archivo_kml, coords, utm_point_list, layer_names):
+    def on_click():
+        messages = generate_files_intermediate(self, doc, ruta_archivo_kml, coords, utm_point_list, layer_names)
+        show_messages(self, messages)    
+    self.boton_generate_files.configure(state= 'normal', command=on_click)
+
+
+def generate_files_intermediate(self, doc, ruta_archivo_kml, coords, utm_point_list, layer_names):
+    return crear_files(self, doc, ruta_archivo_kml, coords, utm_point_list, layer_names)
+
+
+
+
+
+
+
+

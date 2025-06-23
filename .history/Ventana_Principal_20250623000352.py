@@ -54,7 +54,7 @@ class VentanaPrincipal(ctk.CTk):
         base_path = os.path.dirname(os.path.abspath(__file__))
 
         try:
-            ruta_mundo = os.path.join(base_path, "mundo.png")
+            ruta_mundo = os.path.join(base_path, "Convert", "mundo.png")
             imagen1 = Image.open(ruta_mundo)
             imagen_tk1 = ctk.CTkImage(light_image=imagen1, dark_image=imagen1, size=(760, 360))
             label1 = ctk.CTkLabel(self, image=imagen_tk1, text="")
@@ -64,7 +64,7 @@ class VentanaPrincipal(ctk.CTk):
             print(f"No se encontró la imagen: {ruta_mundo}")
 
         try:
-            ruta_logo = os.path.join(base_path,  "AMBYLOG.png")
+            ruta_logo = os.path.join(base_path, "Convert", "AMBYLOG.png")
             imagen2 = Image.open(ruta_logo)
             imagen_tk2 = ctk.CTkImage(light_image=imagen2, dark_image=imagen2, size=(240, 100))
             label2 = ctk.CTkLabel(self, image=imagen_tk2, text="")

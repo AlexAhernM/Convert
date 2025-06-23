@@ -1,13 +1,11 @@
-from Imagen_windows2 import ventana_segunda_imagen
+
 
 def widgets_destroy(self):
     self.selectdata_boton.configure(state='normal')
     self.buttton_procesar_archivo_kml.configure(state='disabled')
-    
     self.selectdata_entry.configure(state='normal')
     self.selectdata_entry.delete(0, "end") # Limpiar contenido
     self.selectdata_entry.configure(state='disabled')
-    
     self.boton_looks_good.destroy()
     self.boton_no_good.destroy()
     self.label_mappreview.destroy()
@@ -17,11 +15,13 @@ def widgets_destroy(self):
         self.checkbox_type.destroy_checkboxes()
     if hasattr(self, 'boton_limpiar') and self.boton_limpiar.winfo_exists():
         self.boton_limpiar.destroy()
-    if self.HomeImages.winfo_children():
-        for widget in self.HomeImages.winfo_children():
+    if hasattr(self, 'boton_cerrar') and self.boton_cerrar.winfo_exists():
+       self.boton_cerrar.destroy() 
+    if self.label3.winfo_children():
+        for widget in self.label3.winfo_children():
             widget.destroy()
     if  self.show_files_frame.winfo_children():       
         for widget in self.show_files_frame.winfo_children():
             widget.destroy()
     
-    ventana_segunda_imagen(self)
+    self._cargar_imagen_amanecer() 

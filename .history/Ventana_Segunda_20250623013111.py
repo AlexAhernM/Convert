@@ -16,7 +16,6 @@ class VentanaSegunda(ctk.CTkToplevel):
     def close_windows(self):
         self.destroy()
     
-    
         
     def abrir_ventana_kml(self):
         self.selectdata_boton = ctk.CTkButton(self, text='Select your KML File', width=200, fg_color='gray7', font=('Arial',16), text_color='white',

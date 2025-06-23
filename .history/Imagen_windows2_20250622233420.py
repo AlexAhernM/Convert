@@ -8,9 +8,9 @@ def ventana_segunda_imagen(self):
     
     try:                    
         
-        self.HomeImages = ctk.CTkLabel(self, text='',image=imagen_tk3, width=620,height=500)
-        self.HomeImages.image = imagen_tk3  # mantener una referencia a la imagen
-        self.HomeImages.place(x=580, y = 100 )
+        self.label3 = ctk.CTkLabel(self.ventana_segunda, text='',image=imagen_tk3, width=620,height=500)
+        self.label3.image = imagen_tk3  # mantener una referencia a la imagen
+        self.label3.place(x=580, y = 100 )
         
     except Exception as e:
         print(f"Error al cargar la imagen: {e}")
@@ -21,9 +21,9 @@ def ventana_tercera_imagen(self):
         
     try:                    
             
-        self.HomeImages = ctk.CTkLabel(self, text='',image=imagen_tk4, width=620,height=500)
-        self.HomeImages.image = imagen_tk4  # mantener una referencia a la imagen
-        self.HomeImages.place(x=580, y = 100 )
+        self.label3 = ctk.CTkLabel(self.ventana_tercera, text='',image=imagen_tk4, width=620,height=500)
+        self.label3.image = imagen_tk4  # mantener una referencia a la imagen
+        self.label3.place(x=580, y = 100 )
                     
     except Exception as e:
         print(f"Error al cargar la imagen: {e}")

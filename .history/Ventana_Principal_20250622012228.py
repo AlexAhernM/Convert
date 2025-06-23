@@ -15,6 +15,7 @@ class VentanaPrincipal(ctk.CTk):
         self.title("Geo Convert Program by Ambylog")
         self.after(0, lambda: self.state('zoomed'))
         self.configure(fg_color='white')
+
         self._crear_botones()
         self._cargar_imagenes()
 
@@ -51,10 +52,9 @@ class VentanaPrincipal(ctk.CTk):
         self.boton_inic2.place(x=30, y=400)
 
     def _cargar_imagenes(self):
-        base_path = os.path.dirname(os.path.abspath(__file__))
-
+        """Carga y muestra las imágenes en la interfaz."""
         try:
-            ruta_mundo = os.path.join(base_path, "mundo.png")
+            ruta_mundo = os.path.join("Convert", "mundo.png")
             imagen1 = Image.open(ruta_mundo)
             imagen_tk1 = ctk.CTkImage(light_image=imagen1, dark_image=imagen1, size=(760, 360))
             label1 = ctk.CTkLabel(self, image=imagen_tk1, text="")
@@ -64,7 +64,7 @@ class VentanaPrincipal(ctk.CTk):
             print(f"No se encontró la imagen: {ruta_mundo}")
 
         try:
-            ruta_logo = os.path.join(base_path,  "AMBYLOG.png")
+            ruta_logo = os.path.join("Conversion", "AMBYLOG.png")
             imagen2 = Image.open(ruta_logo)
             imagen_tk2 = ctk.CTkImage(light_image=imagen2, dark_image=imagen2, size=(240, 100))
             label2 = ctk.CTkLabel(self, image=imagen_tk2, text="")
@@ -73,6 +73,11 @@ class VentanaPrincipal(ctk.CTk):
         except FileNotFoundError:
             print(f"No se encontró la imagen: {ruta_logo}")
 
+    def run(self):
+        """Inicia el bucle principal de la aplicación."""
+        self.mainloop()
+
+
 if __name__ == "__main__":
     app = VentanaPrincipal()
-    app.mainloop()
+    app.run()
